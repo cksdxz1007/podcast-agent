@@ -1,0 +1,23 @@
+{
+  "name": "podcast-transcription",
+  "version": "1.2.1",
+  "description": "播客音频自动转写 - 支持 B站/YouTube 等链接，tmux 后台执行不阻塞",
+  "author": "Fairy",
+  "homepage": "",
+  "tags": ["podcast", "transcription", "whisper", "ai", "bilibili", "youtube", "tmux"],
+  "openclaw": {
+    "emoji": "🎙️",
+    "os": ["darwin", "linux"],
+    "requires": {
+      "bins": ["ffmpeg", "python3", "yt-dlp", "tmux", "uv"],
+      "env": ["LLM_PROVIDER", "ANTHROPIC_API_KEY", "SILICONFLOW_API_KEY", "DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY", "TELEGRAM_CHAT_ID"],
+      "files": ["~/Desktop/podcast-agent/", "~/Desktop/whisper.cpp/"]
+    },
+    "triggers": [
+      "播客转写",
+      "转写这个播客",
+      "帮我转写",
+      "transcribe podcast"
+    ]
+  }
+}

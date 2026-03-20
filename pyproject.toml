@@ -1,0 +1,13 @@
+[project]
+name = "podcast-agent"
+version = "0.1.0"
+description = "Podcast transcription agent - downloads, transcribes, and summarizes audio"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "python-dotenv>=1.2.2",
+    "requests>=2.32.5",
+]
+
+[project.scripts]
+podcast-agent = "podcast_agent.main:entry_point"
