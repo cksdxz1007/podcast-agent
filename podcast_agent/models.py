@@ -5,6 +5,15 @@ from pathlib import Path
 from typing import Optional
 
 
+def _seconds_to_timestamp(seconds: float) -> str:
+    """Convert seconds to Whisper timestamp format (HH:MM:SS,mmm)."""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    millis = int((seconds % 1) * 1000)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+
+
 @dataclass
 class TranscriptSegment:
     """A single segment of transcript with timestamp."""
@@ -15,13 +24,13 @@ class TranscriptSegment:
 
 @dataclass
 class Transcript:
-    """Full transcript from Whisper output."""
+    """Full transcript from transcription provider."""
     segments: list[TranscriptSegment]
     source_path: Path
 
     @classmethod
-    def from_file(cls, path: Path) -> "Transcript":
-        """Parse transcript from Whisper JSON output file."""
+    def from_whisper_json(cls, path: Path) -> "Transcript":
+        """Parse transcript from Whisper.cpp JSON output file."""
         import json
 
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -36,6 +45,52 @@ class Transcript:
             ))
 
         return cls(segments=segments, source_path=path)
+
+    @classmethod
+    def from_openai_response(cls, data: dict, source_path: Path) -> "Transcript":
+        """Parse transcript from OpenAI Whisper API response.
+
+        OpenAI response format:
+        {
+            "text": "...",
+            "segments": [
+                {
+                    "id": 0,
+                    "start": 0.0,
+                    "end": 4.0,
+                    "text": "..."
+                }
+            ]
+        }
+        """
+        segments = []
+        for seg in data.get("segments", []):
+            segments.append(TranscriptSegment(
+                start=_seconds_to_timestamp(seg.get("start", 0.0)),
+                end=_seconds_to_timestamp(seg.get("end", 0.0)),
+                text=seg.get("text", "").strip()
+            ))
+
+        return cls(segments=segments, source_path=source_path)
+
+    @classmethod
+    def from_siliconflow_response(cls, data: dict, source_path: Path) -> "Transcript":
+        """Parse transcript from SiliconFlow Whisper API response.
+
+        SiliconFlow returns simple format: { "text": "..." }
+        No segments with timestamps, just full text.
+        """
+        segments = []
+        text = data.get("text", "").strip()
+        if text:
+            # SiliconFlow doesn't provide timestamps, use 0:00 as placeholder
+            segments.append(TranscriptSegment(
+                start="0:00",
+                end="0:00",
+                text=text
+            ))
+
+        return cls(segments=segments, source_path=source_path)
 
     def get_full_text(self) -> str:
         """Get all text content without timestamps."""

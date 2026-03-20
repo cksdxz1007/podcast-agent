@@ -1,10 +1,15 @@
-"""LLM client implementations for various providers."""
+"""LLM client implementations - uses unified provider registry."""
 
-import os
 import logging
 import requests
 
 from .llm_client import LLMClient, LLMResponse
+from .providers import (
+    ProviderConfig,
+    Capability,
+    ApiStyle,
+    get_provider_by_capability,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -16,12 +21,12 @@ class MiniMaxClient(LLMClient):
     Docs: https://platform.minimax.io/docs/api-reference/text-anthropic-api
     """
 
-    def __init__(self, api_key: str, model: str = "MiniMax-M2.7"):
+    def __init__(self, api_key: str, model: str = "MiniMax-M2.7", base_url: str | None = None):
         import anthropic
         self.api_key = api_key
         self.model = model
         self.client = anthropic.Anthropic(
-            base_url="https://api.minimax.io/anthropic",
+            base_url=base_url or "https://api.minimax.io/anthropic",
             api_key=api_key,
         )
 
@@ -55,18 +60,17 @@ class MiniMaxClient(LLMClient):
         return f"MiniMax/{self.model}"
 
 
-class SiliconFlowClient(LLMClient):
+class SiliconFlowLLMClient(LLMClient):
     """SiliconFlow (siliconflow.cn) LLM client.
 
     Supports DeepSeek-V3.2, Qwen, and other models hosted on SiliconFlow.
     API docs: https://docs.siliconflow.cn/
     """
 
-    BASE_URL = "https://api.siliconflow.cn/v1/chat/completions"
-
-    def __init__(self, api_key: str, model: str = "deepseek-ai/DeepSeek-V3.2"):
+    def __init__(self, api_key: str, model: str = "deepseek-ai/DeepSeek-V3.2", base_url: str | None = None):
         self.api_key = api_key
         self.model = model
+        self.base_url = base_url or "https://api.siliconflow.cn/v1"
 
     def chat(self, system_prompt: str, user_message: str) -> LLMResponse:
         """Call SiliconFlow API."""
@@ -85,7 +89,7 @@ class SiliconFlowClient(LLMClient):
         }
 
         response = requests.post(
-            self.BASE_URL,
+            f"{self.base_url}/chat/completions",
             headers=headers,
             json=payload,
             timeout=120
@@ -103,14 +107,13 @@ class SiliconFlowClient(LLMClient):
         return f"SiliconFlow/{self.model}"
 
 
-class DeepSeekOfficialClient(LLMClient):
+class DeepSeekClient(LLMClient):
     """DeepSeek official API client."""
 
-    BASE_URL = "https://api.deepseek.com/v1/chat/completions"
-
-    def __init__(self, api_key: str, model: str = "deepseek-chat"):
+    def __init__(self, api_key: str, model: str = "deepseek-chat", base_url: str | None = None):
         self.api_key = api_key
         self.model = model
+        self.base_url = base_url or "https://api.deepseek.com/v1"
 
     def chat(self, system_prompt: str, user_message: str) -> LLMResponse:
         """Call DeepSeek official API."""
@@ -129,7 +132,7 @@ class DeepSeekOfficialClient(LLMClient):
         }
 
         response = requests.post(
-            self.BASE_URL,
+            f"{self.base_url}/chat/completions",
             headers=headers,
             json=payload,
             timeout=120
@@ -150,12 +153,10 @@ class DeepSeekOfficialClient(LLMClient):
 class OpenAIClient(LLMClient):
     """OpenAI API compatible client (also works for Azure OpenAI)."""
 
-    BASE_URL = "https://api.openai.com/v1/chat/completions"
-
     def __init__(self, api_key: str, model: str = "gpt-4o", base_url: str = None):
         self.api_key = api_key
         self.model = model
-        self.base_url = base_url or self.BASE_URL
+        self.base_url = base_url or "https://api.openai.com/v1"
 
     def chat(self, system_prompt: str, user_message: str) -> LLMResponse:
         """Call OpenAI API."""
@@ -195,11 +196,10 @@ class OpenAIClient(LLMClient):
 class QwenClient(LLMClient):
     """Alibaba Cloud Qwen (百炼/DashScope) API client."""
 
-    BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
-
-    def __init__(self, api_key: str, model: str = "qwen-plus"):
+    def __init__(self, api_key: str, model: str = "qwen-plus", base_url: str | None = None):
         self.api_key = api_key
         self.model = model
+        self.base_url = base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
     def chat(self, system_prompt: str, user_message: str) -> LLMResponse:
         """Call Alibaba Cloud Qwen API."""
@@ -218,7 +218,7 @@ class QwenClient(LLMClient):
         }
 
         response = requests.post(
-            self.BASE_URL,
+            f"{self.base_url}/chat/completions",
             headers=headers,
             json=payload,
             timeout=120
@@ -236,59 +236,53 @@ class QwenClient(LLMClient):
         return f"Qwen/{self.model}"
 
 
-def create_llm_client(provider: str = None, api_key: str = None, model: str = None) -> LLMClient:
-    """Factory function to create LLM client based on provider.
+def create_llm_client(
+    provider: str | None = None,
+    api_key: str | None = None,
+    model: str | None = None,
+    base_url: str | None = None,
+) -> LLMClient:
+    """Create LLM client based on provider configuration.
 
     Args:
-        provider: Provider name ("siliconflow", "deepseek", "openai", "qwen", "minimax")
-                  If None, reads from LLM_PROVIDER env var
-        api_key: API key. If None, reads from corresponding env var:
-                 - SILICONFLOW_API_KEY
-                 - DEEPSEEK_API_KEY
-                 - OPENAI_API_KEY
-                 - DASHSCOPE_API_KEY
-                 - ANTHROPIC_API_KEY (for minimax)
+        provider: Provider name. If None, uses LLM_PROVIDER env var (default: minimax)
+        api_key: API key. If None, reads from provider's env var
         model: Model name. If None, uses provider default
+        base_url: API base URL. If None, uses provider default
 
     Returns:
         LLMClient instance
     """
-    if provider is None:
-        provider = os.environ.get("LLM_PROVIDER", "minimax").lower()
+    config = get_provider_by_capability(Capability.LLM, provider)
 
+    # Get API key from env if not provided
     if api_key is None:
-        env_vars = {
-            "siliconflow": "SILICONFLOW_API_KEY",
-            "deepseek": "DEEPSEEK_API_KEY",
-            "openai": "OPENAI_API_KEY",
-            "qwen": "DASHSCOPE_API_KEY",
-            "minimax": "ANTHROPIC_API_KEY",
-        }
-        api_key = os.environ.get(env_vars.get(provider, ""))
-
+        api_key = config.get_api_key()
     if not api_key:
-        raise ValueError(f"API key not found for provider: {provider}")
+        raise ValueError(f"API key not found for provider: {config.name}")
 
+    # Use default model if not specified
     if model is None:
-        defaults = {
-            "siliconflow": "deepseek-ai/DeepSeek-V3.2",
-            "deepseek": "deepseek-chat",
-            "openai": "gpt-4o",
-            "qwen": "qwen-plus",
-            "minimax": "MiniMax-M2.7",
+        model = config.llm_model
+    if not model:
+        raise ValueError(f"No default model for provider: {config.name}")
+
+    # Use base_url from config if not specified
+    if base_url is None:
+        base_url = config.base_url
+
+    # Create client based on API style
+    if config.api_style == ApiStyle.ANTHROPIC:
+        return MiniMaxClient(api_key=api_key, model=model, base_url=base_url)
+    else:
+        # REST-style clients
+        client_map = {
+            "siliconflow": SiliconFlowLLMClient,
+            "deepseek": DeepSeekClient,
+            "openai": OpenAIClient,
+            "qwen": QwenClient,
         }
-        model = defaults.get(provider, "gpt-4o")
-
-    clients = {
-        "siliconflow": SiliconFlowClient,
-        "deepseek": DeepSeekOfficialClient,
-        "openai": OpenAIClient,
-        "qwen": QwenClient,
-        "minimax": MiniMaxClient,
-    }
-
-    client_class = clients.get(provider)
-    if client_class is None:
-        raise ValueError(f"Unknown provider: {provider}. Available: {list(clients.keys())}")
-
-    return client_class(api_key=api_key, model=model)
+        client_class = client_map.get(config.name.lower())
+        if client_class:
+            return client_class(api_key=api_key, model=model, base_url=base_url)
+        raise ValueError(f"No LLM client for provider: {config.name}")

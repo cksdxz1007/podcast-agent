@@ -14,10 +14,10 @@ triggers:
 
 ## 功能
 
-1. **自动下载** - 支持 B站、YouTube 及通用链接
+1. **自动下载** - 支持 B站、YouTube 及通用链接（含移动端复制的链接格式）
 2. **格式转换** - 自动转换不支持的格式
-3. **Whisper转写** - 使用本地 Whisper.cpp 模型
-4. **AI总结** - 支持 MiniMax/SiliconFlow/DeepSeek/Qwen 等多 LLM 提供商
+3. **AI转写** - 支持本地 Whisper.cpp 和云端 API（SiliconFlow、OpenAI）
+4. **AI总结** - 支持 MiniMax/SiliconFlow/DeepSeek/OpenAI/Qwen 等多 LLM 提供商
 5. **自动推送** - 转写完成后自动发送到 Telegram
 6. **后台运行** - 使用 tmux 后台执行，不阻塞 openclaw
 
@@ -34,32 +34,14 @@ triggers:
 ### 视频/音频链接
 - B站视频链接（支持 `bilibili.com` 和 `b23.tv` 短链接，自动使用 cookie）
 - YouTube 链接
+- 移动端复制的链接（自动提取 URL）
+  - 格式：`【标题】 https://b23.tv/xxxxx`
 - 其他可下载的音频链接
 
 ### 示例
 ```
 用户: 播客转写 https://www.bilibili.com/video/BV173wdzgEyw
-Fairy: ✅ 收到！转写任务已在后台启动，完成后自动推送给你
-       PID: 12345
-       查看进度: tail -f ~/Desktop/podcast-agent/logs/tmux_podcast_trans_12345.log
-       进入会话: tmux attach -t podcast_trans_12345
-       停止任务: tmux kill-session -t podcast_trans_12345
-[5分钟后]
-Fairy: 📝 播客转写完成！
-
-## 📌 主题
-...简短总结...
-
-## 📝 主要内容
-- ...要点列表...
-
-## 💡 关键观点
-- ...观点...
-
-## 🎯 总结
-...总结...
-
-📄 详细文档: /Users/cynningli/Desktop/podcast-agent/documents/doc_xxx.md
+用户: 播客转写 【视频标题】 https://b23.tv/xxxxx
 ```
 
 ## 支持的格式
@@ -82,36 +64,127 @@ Fairy: 📝 播客转写完成！
 
 ## 配置
 
-### 环境变量
+### 配置文件
 
-通过 `~/.openclaw/.env` 或 `~/.api_keys` 配置：
+配置文件分离管理：
+- **`~/.api_keys`** - API 密钥（仅存放密钥）
+- **`~/.llm_providers`** - Provider 模型配置和路径
+
+### ~/.api_keys（API 密钥）
 
 ```bash
-# LLM 提供商选择 (可选，默认 minimax)
-export LLM_PROVIDER="minimax"  # 可选: siliconflow, deepseek, openai, qwen
+# MiniMax
+ANTHROPIC_API_KEY=your-minimax-token-plan-key
 
-# 各提供商 API Key (根据 LLM_PROVIDER 选择需要的)
-export ANTHROPIC_API_KEY="your-minimax-token-plan-key"  # MiniMax Token Plan
-export SILICONFLOW_API_KEY="your-siliconflow-key"       # SiliconFlow
-export DEEPSEEK_API_KEY="your-deepseek-key"             # DeepSeek 官方
-export DASHSCOPE_API_KEY="your-qwen-key"                # 阿里云百炼
+# SiliconFlow
+SILICONFLOW_API_KEY=your-siliconflow-key
 
-# OpenClaw 配置
-export TELEGRAM_CHAT_ID="your-telegram-chat-id"
+# OpenAI
+OPENAI_API_KEY=your-openai-key
+
+# DeepSeek
+DEEPSEEK_API_KEY=your-deepseek-key
+
+# Qwen
+DASHSCOPE_API_KEY=your-qwen-key
+
+# 通知
+TELEGRAM_CHAT_ID=your-telegram-chat-id
+FEISHU_USER_ID=your-feishu-user-id
 ```
 
-### 依赖
+### ~/.llm_providers（Provider 模型和路径配置）
+
+```bash
+# =============================================================================
+# Provider 选择
+# =============================================================================
+LLM_PROVIDER=minimax                  # LLM 提供商 (默认 minimax)
+TRANSCRIPTION_PROVIDER=siliconflow     # 转写提供商 (默认 whispercpp)
+
+# =============================================================================
+# LLM 模型
+# =============================================================================
+LLM_MODEL=MiniMax-M2.7                # 默认 LLM 模型
+
+# Provider 特定覆盖（可选）
+# MINIMAX_LLM_MODEL=MiniMax-M2.7
+# SILICONFLOW_LLM_MODEL=deepseek-ai/DeepSeek-V3.2
+# DEEPSEEK_LLM_MODEL=deepseek-chat
+# OPENAI_LLM_MODEL=gpt-4o
+# QWEN_LLM_MODEL=qwen-plus
+
+# =============================================================================
+# API Base URL（可选）
+# =============================================================================
+# 用于自定义 API 代理 / 公司内部部署 / 特殊网络环境
+# MINIMAX_BASE_URL=https://custom-api.example.com/anthropic
+# SILICONFLOW_BASE_URL=https://custom-siliconflow.example.com/v1
+
+# =============================================================================
+# 转写模型
+# =============================================================================
+TRANSCRIPTION_MODEL=FunAudioLLM/SenseVoiceSmall  # 默认转写模型
+
+# Provider 特定覆盖（可选）
+# OPENAI_TRANSCRIPTION_MODEL=whisper-1
+
+# =============================================================================
+# Whisper.cpp 本地路径
+# =============================================================================
+WHISPERCPP_CLI_PATH=~/Desktop/whisper.cpp/build/bin/whisper-cli
+WHISPERCPP_MODEL_PATH=~/Desktop/whisper.cpp/models/ggml-medium.bin
+```
+
+### 转写提供商
+
+| 提供商 | 类型 | 模型 | 特点 |
+|--------|------|------|------|
+| whispercpp | 本地 | ggml-medium.bin | 免费、需本地安装 |
+| siliconflow | 云端 | FunAudioLLM/SenseVoiceSmall | 快速、精确 |
+| openai | 云端 | whisper-1 | 需 OpenAI API Key |
+
+### LLM 提供商
+
+| 提供商 | 默认模型 | 说明 |
+|--------|---------|------|
+| minimax | MiniMax-M2.7 | Token Plan 专属端点 |
+| siliconflow | DeepSeek-V3.2 | 第三方聚合 |
+| deepseek | deepseek-chat | 官方 API |
+| openai | gpt-4o | OpenAI 兼容格式 |
+| qwen | qwen-plus | 阿里云百炼 |
+
+### 配置优先级
+
+| 配置项 | 优先级 |
+|--------|--------|
+| `~/.llm_providers` 中的 Provider 选择 | 高 |
+| `~/.llm_providers` 中的模型/路径 | 高 |
+| 代码默认值 | 低（备用） |
+
+### 环境变量（备用）
+
+```bash
+# LLM 提供商
+export LLM_PROVIDER="minimax"
+
+# 转写提供商
+export TRANSCRIPTION_PROVIDER="whispercpp"
+
+# Whisper.cpp 路径（备用）
+export WHISPER_CLI="~/Desktop/whisper.cpp/build/bin/whisper-cli"
+export WHISPER_MODEL="~/Desktop/whisper.cpp/models/ggml-medium.bin"
+```
+
+## 依赖
 
 | 工具 | 说明 |
 |------|------|
 | tmux | 后台会话管理（必需） |
 | ffmpeg | 音频格式转换 |
-| Whisper.cpp | 转写引擎 | 必选 |
-| 模型文件 | `~/Desktop/whisper.cpp/models/ggml-medium.bin` | 必选 |
-| Bilibili cookies | `~/Desktop/podcast-agent/bilibili_cookies.txt` | B站下载必需 |
+| Whisper.cpp | 本地转写引擎（可选） |
 | yt-dlp | 视频下载 |
 | Python 3 | 运行脚本 |
-| anthropic | MiniMax Token Plan SDK |
 
 ## 文件位置
 
@@ -119,22 +192,11 @@ export TELEGRAM_CHAT_ID="your-telegram-chat-id"
 |------|------|
 | 启动脚本 | `~/Desktop/podcast-agent/run_in_tmux.sh` |
 | 会话管理 | `~/Desktop/podcast-agent/sessions.sh` |
-| 主脚本 | `~/Desktop/podcast-agent/podcast_agent/main.py` |
+| 主脚本 | `~/Desktop/podcast-agent/podcast_agent/` |
 | 转写输出 | `~/Desktop/podcast-agent/transcriptions/` |
 | 文档输出 | `~/Desktop/podcast-agent/documents/` |
 | 临时文件 | `~/Desktop/podcast-agent/tmp/` |
-| 日志文件 | `~/Desktop/podcast-agent/logs/` |
 | Bilibili cookies | `~/Desktop/podcast-agent/bilibili_cookies.txt` |
-
-## LLM 提供商
-
-| 提供商 | 模型 | 说明 |
-|--------|------|------|
-| MiniMax | MiniMax-M2.7 | Token Plan 专属端点 |
-| SiliconFlow | DeepSeek-V3.2 | 第三方聚合 |
-| DeepSeek | deepseek-chat | 官方 API |
-| OpenAI | gpt-4o | OpenAI 兼容格式 |
-| Qwen | qwen-plus | 阿里云百炼 |
 
 ## 后台运行机制
 
@@ -159,10 +221,6 @@ export TELEGRAM_CHAT_ID="your-telegram-chat-id"
 
 # 停止会话
 ~/Desktop/podcast-agent/sessions.sh stop <pid>
-
-# 或直接用 tmux 命令
-tmux attach -t podcast_trans_<pid>   # 进入会话
-tmux kill-session -t podcast_trans_<pid>  # 停止会话
 ```
 
 ## 错误处理
@@ -174,14 +232,11 @@ tmux kill-session -t podcast_trans_<pid>  # 停止会话
 | 转写失败 | "转写失败，请检查音频文件是否损坏" |
 | API调用失败 | "AI总结失败，请检查 API Key 是否有效" |
 | B站 cookies 缺失 | "B站下载需要 cookies 文件，请检查 bilibili_cookies.txt 是否存在" |
-| Whisper 模型缺失 | "Whisper 模型未找到，请确认 ~/Desktop/whisper.cpp/models/ggml-medium.bin 存在" |
 
 ## 注意事项
 
-1. 转写时间取决于音频长度（16分钟音频约需5分钟）
+1. 转写时间：SiliconFlow API 约 2-5 秒，Whisper.cpp 约 4-5 分钟
 2. B站下载需要 `bilibili_cookies.txt` 文件
-   - 如果文件不存在，系统会提示错误
-   - 获取方法：登录 B站 → 开发者工具 → Network → 找到 bilibili.com 请求 → 复制 cookie 字符串保存为此文件
-3. 首次使用需要配置对应的 API Key 环境变量
+   - 获取方法：登录 B站 → 开发者工具 → Network → 找到 bilibili.com 请求 → 复制 cookie 字符串
+3. SiliconFlow 转写速度快但无时间戳，Whisper.cpp 有时间戳
 4. tmux 会话会在任务完成后自动关闭，日志保留在 `logs/` 目录
-5. 首次使用前确认 Whisper.cpp 和模型文件已安装

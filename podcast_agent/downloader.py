@@ -24,7 +24,7 @@ class Downloader:
         """Download audio from URL and return path to audio file.
 
         Args:
-            url: Source URL (Bilibili, YouTube, or generic)
+            url: Source URL (Bilibili, YouTube, or generic). Can contain extra text.
             name: Name for the podcast (used in temp file naming)
 
         Returns:
@@ -32,12 +32,32 @@ class Downloader:
         """
         logger.info("Starting download...")
 
-        if "bilibili.com" in url or "b23.tv" in url:
-            return self._download_bilibili(url, name)
-        elif "youtube.com" in url or "youtu.be" in url:
-            return self._download_youtube(url, name)
+        # Extract clean URL if text contains extra content
+        clean_url = self._extract_url(url)
+        logger.info(f"Clean URL: {clean_url}")
+
+        if "bilibili.com" in clean_url or "b23.tv" in clean_url:
+            return self._download_bilibili(clean_url, name)
+        elif "youtube.com" in clean_url or "youtu.be" in clean_url:
+            return self._download_youtube(clean_url, name)
         else:
-            return self._download_generic(url, name)
+            return self._download_generic(clean_url, name)
+
+    def _extract_url(self, text: str) -> str:
+        """Extract URL from text that may contain extra content.
+
+        Handles formats like:
+        - 【标题】 https://example.com
+        - 链接：https://example.com
+        - https://example.com (already clean)
+        """
+        import re
+        # URL pattern
+        url_pattern = r'https?://[^\s<>\"\'）】]+'
+        match = re.search(url_pattern, text)
+        if match:
+            return match.group(0)
+        return text.strip()
 
     def _download_bilibili(self, url: str, name: str) -> Path:
         """Download from Bilibili using cookies."""

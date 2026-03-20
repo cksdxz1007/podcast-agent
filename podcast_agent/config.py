@@ -26,6 +26,15 @@ class Config:
     telegram_user_id: str
     feishu_user_id: str
 
+    # Transcription provider settings
+    transcription_provider: str = "whispercpp"
+    openai_whisper_model: str = "whisper-1"
+    siliconflow_whisper_model: str = "FunAudioLLM/SenseVoiceLarge"
+
+    # OpenAI/SiliconFlow API keys (for transcription)
+    openai_api_key: str = ""
+    siliconflow_api_key: str = ""
+
     # Defaults
     default_timeout: int = 600
     max_retries: int = 3
@@ -64,6 +73,11 @@ class Config:
             deepseek_api_key=os.environ.get("DEEPSEEK_API_KEY", ""),
             telegram_user_id=os.environ.get("TELEGRAM_CHAT_ID", ""),
             feishu_user_id=os.environ.get("FEISHU_USER_ID", ""),
+            transcription_provider=os.environ.get("TRANSCRIPTION_PROVIDER", "whispercpp"),
+            openai_whisper_model=os.environ.get("OPENAI_WHISPER_MODEL", "whisper-1"),
+            siliconflow_whisper_model=os.environ.get("SILICONFLOW_WHISPER_MODEL", "FunAudioLLM/SenseVoiceLarge"),
+            openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
+            siliconflow_api_key=os.environ.get("SILICONFLOW_API_KEY", ""),
         )
 
     def ensure_directories(self) -> None:
