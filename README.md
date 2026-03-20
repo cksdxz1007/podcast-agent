@@ -11,6 +11,42 @@
 
 ## 快速开始
 
+### 1. 安装 UV
+
+**macOS / Linux:**
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+**Windows (PowerShell):**
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**通过 pip / pipx:**
+```bash
+pip install uv
+# 或
+pipx install uv
+```
+
+**更新 UV:**
+```bash
+uv self update
+```
+
+### 2. 运行设置向导
+
+```bash
+# 首次使用，运行配置向导
+uv run python -m podcast_agent.wizard
+
+# 或安装后使用
+podcast-agent-setup
+```
+
+### 3. 开始使用
+
 ```bash
 # 通过 openclaw 触发
 "播客转写 https://b23.tv/xxxxx"
@@ -90,6 +126,7 @@ WHISPERCPP_MODEL_PATH=~/Desktop/whisper.cpp/models/ggml-medium.bin
 ```
 podcast_agent/
 ├── main.py              # 主入口
+├── wizard.py            # 交互式配置向导
 ├── config.py            # 配置加载
 ├── downloader.py         # 视频下载
 ├── transcriber.py        # 转写（Facade）

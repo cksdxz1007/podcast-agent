@@ -11,3 +11,4 @@ dependencies = [
 
 [project.scripts]
 podcast-agent = "podcast_agent.main:entry_point"
+podcast-agent-setup = "podcast_agent.wizard:main"
