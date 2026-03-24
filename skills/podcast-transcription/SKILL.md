@@ -196,7 +196,7 @@ export WHISPER_MODEL="~/Desktop/whisper.cpp/models/ggml-medium.bin"
 | 转写输出 | `~/Desktop/podcast-agent/transcriptions/` |
 | 文档输出 | `~/Desktop/podcast-agent/documents/` |
 | 临时文件 | `~/Desktop/podcast-agent/tmp/` |
-| Bilibili cookies | `~/Desktop/podcast-agent/bilibili_cookies.txt` |
+| Bilibili cookies | Firefox 浏览器（自动读取，无需文件） |
 
 ## 后台运行机制
 
@@ -231,12 +231,12 @@ export WHISPER_MODEL="~/Desktop/whisper.cpp/models/ggml-medium.bin"
 | 格式转换失败 | "格式转换失败，请检查音频文件是否损坏" |
 | 转写失败 | "转写失败，请检查音频文件是否损坏" |
 | API调用失败 | "AI总结失败，请检查 API Key 是否有效" |
-| B站 cookies 缺失 | "B站下载需要 cookies 文件，请检查 bilibili_cookies.txt 是否存在" |
+| B站/YouTube 下载失败 | "下载失败，请确保 Firefox 已登录对应网站" |
 
 ## 注意事项
 
 1. 转写时间：SiliconFlow API 约 2-5 秒，Whisper.cpp 约 4-5 分钟
-2. B站下载需要 `bilibili_cookies.txt` 文件
-   - 获取方法：登录 B站 → 开发者工具 → Network → 找到 bilibili.com 请求 → 复制 cookie 字符串
+2. Bilibili 和 YouTube 下载自动从 Firefox 浏览器读取 cookies
+   - 确保 Firefox 已登录对应网站即可，无需手动配置 cookies 文件
 3. SiliconFlow 转写速度快但无时间戳，Whisper.cpp 有时间戳
 4. tmux 会话会在任务完成后自动关闭，日志保留在 `logs/` 目录

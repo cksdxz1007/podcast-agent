@@ -17,6 +17,7 @@ class Config:
     whisper_model: Path
     whisper_cli: Path
     cookie_file: Path
+    youtube_cookie_file: Path = Path.home() / "Desktop" / "youtube_cookies.txt"
     transcription_dir: Path
     document_dir: Path
     openclaw_bin: Path
@@ -63,7 +64,14 @@ class Config:
                 "WHISPER_CLI",
                 str(Path.home() / "Desktop" / "whisper.cpp" / "build" / "bin" / "whisper-cli")
             )),
-            cookie_file=script_dir / "bilibili_cookies.txt",
+            cookie_file=Path(os.environ.get(
+                "BILIBILI_COOKIE_FILE",
+                str(script_dir / "bilibili_cookies.txt")
+            )),
+            youtube_cookie_file=Path(os.environ.get(
+                "YOUTUBE_COOKIE_FILE",
+                str(script_dir / "youtube_cookies.txt")
+            )),
             transcription_dir=script_dir / "transcriptions",
             document_dir=script_dir / "documents",
             openclaw_bin=Path(os.environ.get(

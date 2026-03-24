@@ -1,6 +1,7 @@
 """Download module - handles video/audio downloading from various sources."""
 
 import logging
+import os
 import subprocess
 from pathlib import Path
 
@@ -62,8 +63,7 @@ class Downloader:
     def _download_bilibili(self, url: str, name: str) -> Path:
         """Download from Bilibili using cookies."""
         cookie_file = self.config.cookie_file
-        if not cookie_file.exists():
-            raise DownloadError(f"Bilibili cookie file not found: {cookie_file}")
+        browser_name = os.environ.get("BILIBILI_BROWSER", "firefox")
 
         logger.info("Detected Bilibili video, downloading...")
 
@@ -73,23 +73,32 @@ class Downloader:
         output_file = tmp_dir / f"video_{name}_{id(self)}.mp4"
         audio_file = tmp_dir / f"audio_{name}_{id(self)}.mp3"
 
+        # Prefer browser cookies for auto-renewal, fall back to cookie file
+        use_browser = not cookie_file.exists()
+        if use_browser:
+            logger.info(f"Using Bilibili cookies from browser: {browser_name}")
+        else:
+            logger.info(f"Using Bilibili cookies from file: {cookie_file}")
+
         try:
+            # Build command - use browser cookies or file cookies
+            cmd_base = ["yt-dlp", "--merge-output-format", "mp4", "-o", str(output_file), url]
+            if use_browser:
+                cmd = cmd_base[:1] + ["--cookies-from-browser", browser_name] + cmd_base[1:]
+            else:
+                cmd = cmd_base[:1] + ["--cookies", str(cookie_file)] + cmd_base[1:]
+
             # Download with default quality selection
-            result = subprocess.run(
-                ["yt-dlp", "--cookies", str(cookie_file),
-                 "--merge-output-format", "mp4",
-                 "-o", str(output_file), url],
-                capture_output=True, text=True
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True)
 
             if result.returncode != 0 or not output_file.exists():
                 logger.warning(f"Download warning: {result.stderr}")
                 # Fallback: try without format selection
-                result = subprocess.run(
-                    ["yt-dlp", "--cookies", str(cookie_file),
-                     "-o", str(output_file), url],
-                    capture_output=True, text=True
-                )
+                if use_browser:
+                    cmd = ["yt-dlp", "-o", str(output_file), url]
+                else:
+                    cmd = ["yt-dlp", "--cookies", str(cookie_file), "-o", str(output_file), url]
+                result = subprocess.run(cmd, capture_output=True, text=True)
                 if result.returncode != 0 or not output_file.exists():
                     raise DownloadError(f"Bilibili download failed: {result.stderr}")
 
@@ -112,13 +121,29 @@ class Downloader:
         timestamp = int(time.time() * 1000)
         audio_file = tmp_dir / f"yt_audio_{name}_{timestamp}.mp3"
 
-        result = subprocess.run(
-            ["yt-dlp", "-x", "--audio-format", "mp3",
-             "-o", str(audio_file), url],
-            capture_output=True, text=True
-        )
+        # Build yt-dlp command - prefer browser cookies for auto-renewal
+        browser_name = os.environ.get("YOUTUBE_BROWSER", "firefox")
+        cmd = ["yt-dlp", "-x", "--audio-format", "mp3",
+               "-o", str(audio_file), url]
+        if self.config.youtube_cookie_file.exists():
+            cmd.insert(1, "--cookies")
+            cmd.insert(2, str(self.config.youtube_cookie_file))
+            logger.info(f"Using YouTube cookies from file: {self.config.youtube_cookie_file}")
+        else:
+            # Fall back to browser cookies (auto-renewed by browser)
+            cmd.insert(1, "--cookies-from-browser")
+            cmd.insert(2, browser_name)
+            logger.info(f"Using YouTube cookies from browser: {browser_name}")
+
+        result = subprocess.run(cmd, capture_output=True, text=True)
 
         if result.returncode != 0 or not audio_file.exists():
+            if "HTTP Error 403" in result.stderr:
+                raise DownloadError(
+                    f"YouTube download failed (403 Forbidden). "
+                    f"The YouTube cookie may have expired. Please update cookies at: "
+                    f"{self.config.youtube_cookie_file}"
+                )
             raise DownloadError(f"YouTube download failed: {result.stderr}")
 
         logger.info("YouTube download complete")
