@@ -17,7 +17,7 @@ class Config:
     whisper_model: Path
     whisper_cli: Path
     cookie_file: Path
-    youtube_cookie_file: Path = Path.home() / "Desktop" / "youtube_cookies.txt"
+    youtube_cookie_file: Path
     transcription_dir: Path
     document_dir: Path
     openclaw_bin: Path
