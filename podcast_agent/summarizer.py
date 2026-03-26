@@ -106,11 +106,12 @@ class Summarizer:
         response = self.llm_client.chat(prompt, text)
         return response.content
 
-    def generate_document(self, transcript: Transcript) -> Path:
+    def generate_document(self, transcript: Transcript, name: str = None) -> Path:
         """Generate detailed Markdown document from transcript.
 
         Args:
             transcript: The transcript object
+            name: Optional name for the podcast (used in output filename)
 
         Returns:
             Path to the generated document
@@ -130,9 +131,12 @@ class Summarizer:
         # Clean markdown content
         markdown_content = self._clean_markdown(markdown_content)
 
-        # Save document
+        # Save document - use name if provided, otherwise fallback to doc_{timestamp}
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        doc_file = self.config.document_dir / f"doc_{timestamp}.md"
+        if name:
+            doc_file = self.config.document_dir / f"{name}_{timestamp}.md"
+        else:
+            doc_file = self.config.document_dir / f"doc_{timestamp}.md"
 
         with open(doc_file, "w", encoding="utf-8") as f:
             f.write(markdown_content)

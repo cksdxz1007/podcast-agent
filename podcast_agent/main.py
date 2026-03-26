@@ -58,7 +58,7 @@ def main(url: str, name: str = "podcast") -> int:
         # Step 3: Generate document
         logger.info("Step 3/5: Generating detailed document...")
         summarizer = Summarizer(config)
-        doc_path = summarizer.generate_document(transcript)
+        doc_path = summarizer.generate_document(transcript, name)
         logger.info(f"Document saved to: {doc_path}")
 
         # Step 4: Generate brief
