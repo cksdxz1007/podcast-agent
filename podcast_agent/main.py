@@ -48,9 +48,15 @@ def main(url: str, name: str = "podcast") -> int:
         config = Config.load()
         config.ensure_directories()
 
+        # Select cookie file based on platform
+        if "bilibili.com" in url or "b23.tv" in url:
+            subtitle_cookie_file = config.cookie_file
+        else:
+            subtitle_cookie_file = config.youtube_cookie_file
+
         # Step 0: Check for subtitles before downloading
         logger.info("Step 0/5: Checking available subtitles...")
-        subtitle_info = check_subtitles(url, cookie_file=config.youtube_cookie_file)
+        subtitle_info = check_subtitles(url, cookie_file=subtitle_cookie_file)
 
         if subtitle_info is not None:
             try:
@@ -66,7 +72,7 @@ def main(url: str, name: str = "podcast") -> int:
                         subtitle_type=subtitle_info.subtitle_type,
                         output_dir=config.subtitle_dir,
                         name=name,
-                        cookie_file=config.youtube_cookie_file,
+                        cookie_file=subtitle_cookie_file,
                     )
 
                     chinese_text = parse_srt_text(srt_path)
@@ -87,7 +93,7 @@ def main(url: str, name: str = "podcast") -> int:
                         subtitle_type=subtitle_info.subtitle_type,
                         output_dir=config.subtitle_dir,
                         name=name,
-                        cookie_file=config.youtube_cookie_file,
+                        cookie_file=subtitle_cookie_file,
                     )
 
                     llm_client = create_llm_client()
