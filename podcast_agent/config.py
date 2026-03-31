@@ -20,6 +20,7 @@ class Config:
     youtube_cookie_file: Path
     transcription_dir: Path
     document_dir: Path
+    subtitle_dir: Path
     openclaw_bin: Path
 
     # API settings
@@ -74,6 +75,7 @@ class Config:
             )),
             transcription_dir=script_dir / "transcriptions",
             document_dir=script_dir / "documents",
+            subtitle_dir=script_dir / "subtitles",
             openclaw_bin=Path(os.environ.get(
                 "OPENCLAW_BIN",
                 str(Path.home() / ".nvm" / "versions" / "node" / "v22.22.1" / "bin" / "openclaw")
@@ -90,5 +92,5 @@ class Config:
 
     def ensure_directories(self) -> None:
         """Create necessary directories if they don't exist."""
-        for dir_path in [self.transcription_dir, self.document_dir]:
+        for dir_path in [self.transcription_dir, self.document_dir, self.subtitle_dir]:
             dir_path.mkdir(parents=True, exist_ok=True)

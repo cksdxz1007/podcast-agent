@@ -6,7 +6,7 @@ from pathlib import Path
 from datetime import datetime
 
 from .config import Config
-from .models import Transcript, Summary
+from .models import Transcript, TextSource, Summary
 from .llm_providers import create_llm_client, LLMClient
 
 logger = logging.getLogger(__name__)
@@ -106,11 +106,13 @@ class Summarizer:
         response = self.llm_client.chat(prompt, text)
         return response.content
 
-    def generate_document(self, transcript: Transcript, name: str = None) -> Path:
-        """Generate detailed Markdown document from transcript.
+    def generate_document(
+        self, text_source: Transcript | TextSource, name: str = None
+    ) -> Path:
+        """Generate detailed Markdown document from transcript or subtitle text.
 
         Args:
-            transcript: The transcript object
+            text_source: The transcript or TextSource object
             name: Optional name for the podcast (used in output filename)
 
         Returns:
@@ -118,7 +120,7 @@ class Summarizer:
         """
         logger.info("Generating detailed document...")
 
-        full_text = transcript.get_full_text()
+        full_text = text_source.get_full_text()
 
         try:
             markdown_content = self._call_llm(
@@ -144,18 +146,18 @@ class Summarizer:
         logger.info(f"Document saved to {doc_file}")
         return doc_file
 
-    def generate_brief(self, transcript: Transcript) -> Summary:
-        """Generate brief summary from transcript.
+    def generate_brief(self, text_source: Transcript | TextSource) -> Summary:
+        """Generate brief summary from transcript or subtitle text.
 
         Args:
-            transcript: The transcript object
+            text_source: The transcript or TextSource object
 
         Returns:
             Summary object with brief content
         """
         logger.info("Generating brief summary...")
 
-        full_text = transcript.get_full_text()
+        full_text = text_source.get_full_text()
 
         try:
             content = self._call_llm(

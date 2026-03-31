@@ -11,6 +11,11 @@ from .downloader import Downloader, DownloadError
 from .transcriber import Transcriber, TranscriptionError
 from .summarizer import Summarizer, SummarizationError
 from .notifier import Notifier, NotificationError
+from .models import TextSource, Summary
+from .subtitle_checker import check_subtitles
+from .subtitle_downloader import download_subtitle
+from .subtitle_translator import translate_srt_to_chinese, parse_srt_text
+from .llm_providers import create_llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +47,79 @@ def main(url: str, name: str = "podcast") -> int:
     try:
         config = Config.load()
         config.ensure_directories()
+
+        # Step 0: Check for subtitles before downloading
+        logger.info("Step 0/5: Checking available subtitles...")
+        subtitle_info = check_subtitles(url, cookie_file=config.youtube_cookie_file)
+
+        if subtitle_info is not None:
+            try:
+                if subtitle_info.language_code.startswith("zh"):  # Chinese
+                    # Chinese subtitles available - skip download & transcription
+                    logger.info(
+                        f"Found Chinese {subtitle_info.subtitle_type} subtitles "
+                        f"({subtitle_info.language_code}), skipping audio download & transcription"
+                    )
+                    srt_path = download_subtitle(
+                        url=url,
+                        language=subtitle_info.language_code,
+                        subtitle_type=subtitle_info.subtitle_type,
+                        output_dir=config.subtitle_dir,
+                        name=name,
+                        cookie_file=config.youtube_cookie_file,
+                    )
+
+                    chinese_text = parse_srt_text(srt_path)
+                    text_source = TextSource(
+                        source_type="subtitle_zh",
+                        full_text=chinese_text,
+                        source_path=srt_path,
+                    )
+                elif subtitle_info.language_code.lower() == "en":
+                    # English subtitles - download & translate
+                    logger.info(
+                        f"Found English {subtitle_info.subtitle_type} subtitles "
+                        f"({subtitle_info.language_code}), downloading & translating"
+                    )
+                    srt_path = download_subtitle(
+                        url=url,
+                        language=subtitle_info.language_code,
+                        subtitle_type=subtitle_info.subtitle_type,
+                        output_dir=config.subtitle_dir,
+                        name=name,
+                        cookie_file=config.youtube_cookie_file,
+                    )
+
+                    llm_client = create_llm_client()
+                    chinese_text = translate_srt_to_chinese(srt_path, llm_client)
+                    text_source = TextSource(
+                        source_type="subtitle_en_translated",
+                        full_text=chinese_text,
+                        source_path=srt_path,
+                    )
+                else:
+                    raise RuntimeError(f"Unexpected subtitle language: {subtitle_info.language_code}")
+
+                # Skip to generation
+                logger.info("Step 1/4: Generating document from subtitles...")
+                summarizer = Summarizer(config)
+                doc_path = summarizer.generate_document(text_source, name)
+                logger.info(f"Document saved to: {doc_path}")
+
+                logger.info("Step 2/4: Generating brief summary...")
+                brief = summarizer.generate_brief(text_source)
+
+                logger.info("Step 3/4: Sending notification...")
+                notifier = Notifier(config)
+                notifier.send(brief, doc_path)
+
+                logger.info("========== Processing complete ==========")
+                return 0
+
+            except RuntimeError:
+                # Subtitle download failed - fall back to normal flow
+                logger.warning("Subtitle download failed, falling back to audio download & transcription")
+        logger.info("No subtitles found, proceeding with audio download & transcription")
 
         # Step 1: Download
         logger.info("Step 1/5: Downloading audio...")
@@ -106,7 +184,7 @@ def _send_error_notification(message: str) -> None:
         config = Config.load()
         notifier = Notifier(config)
         notifier.send(
-            type("Summary", (), {"content": f"❌ 播客转写失败：{message}", "topic": ""})(),
+            Summary(content=f"播客转写失败：{message}"),
             Path("error")
         )
     except Exception:

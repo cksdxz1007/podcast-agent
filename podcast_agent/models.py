@@ -98,6 +98,18 @@ class Transcript:
 
 
 @dataclass
+class TextSource:
+    """Text content from any source (transcript or subtitle)."""
+    source_type: str  # "whisper", "subtitle_zh", "subtitle_en_translated"
+    full_text: str
+    source_path: Path | None = None
+
+    def get_full_text(self) -> str:
+        """Get all text content."""
+        return self.full_text
+
+
+@dataclass
 class Summary:
     """AI-generated summary result."""
     content: str
