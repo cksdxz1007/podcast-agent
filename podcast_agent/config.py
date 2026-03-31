@@ -40,6 +40,7 @@ class Config:
     # Defaults
     default_timeout: int = 600
     max_retries: int = 3
+    llm_concurrency: int = 2
 
     @classmethod
     def load(cls) -> "Config":
@@ -88,6 +89,7 @@ class Config:
             siliconflow_whisper_model=os.environ.get("SILICONFLOW_WHISPER_MODEL", "FunAudioLLM/SenseVoiceLarge"),
             openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
             siliconflow_api_key=os.environ.get("SILICONFLOW_API_KEY", ""),
+            llm_concurrency=int(os.environ.get("LLM_CONCURRENCY", "2")),
         )
 
     def ensure_directories(self) -> None:

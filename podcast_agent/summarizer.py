@@ -4,6 +4,7 @@ import logging
 import re
 from pathlib import Path
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .config import Config
 from .models import Transcript, TextSource, Summary
@@ -162,15 +163,24 @@ class Summarizer:
                     f"请根据以下转写内容生成详细文档：\n\n{chunks[0]}"
                 )
             else:
-                # Generate partial documents from each chunk
-                partial_docs = []
-                for i, chunk in enumerate(chunks):
-                    logger.info(f"Processing chunk {i + 1}/{len(chunks)}...")
-                    partial = self._call_llm(
+                concurrency = self.config.llm_concurrency
+                logger.info(f"Processing {len(chunks)} chunks in parallel (concurrency={concurrency})...")
+
+                def process_chunk(args):
+                    idx, chunk = args
+                    logger.info(f"Processing chunk {idx + 1}/{len(chunks)}...")
+                    return idx, self._call_llm(
                         self.DOCUMENT_PROMPT,
-                        f"请根据以下转写内容（第 {i + 1}/{len(chunks)} 部分）生成详细文档：\n\n{chunk}"
+                        f"请根据以下转写内容（第 {idx + 1}/{len(chunks)} 部分）生成详细文档：\n\n{chunk}"
                     )
-                    partial_docs.append(partial)
+
+                # Parallel generation of partial documents
+                partial_docs: list[str] = ["" for _ in chunks]
+                with ThreadPoolExecutor(max_workers=concurrency) as executor:
+                    futures = {executor.submit(process_chunk, (i, c)): i for i, c in enumerate(chunks)}
+                    for future in as_completed(futures):
+                        idx, doc = future.result()
+                        partial_docs[idx] = doc
 
                 # Synthesize final document from all partials
                 logger.info("Synthesizing final document from chunks...")
@@ -220,16 +230,25 @@ class Summarizer:
                     f"请总结以下播客内容：\n\n{chunks[0]}"
                 )
             else:
-                # Extract key points from each chunk
-                point_parts = []
-                for i, chunk in enumerate(chunks):
-                    logger.info(f"Extracting key points from chunk {i + 1}/{len(chunks)}...")
-                    points = self._call_llm(
+                concurrency = self.config.llm_concurrency
+                logger.info(f"Extracting key points from {len(chunks)} chunks in parallel (concurrency={concurrency})...")
+
+                def extract_points(args):
+                    idx, chunk = args
+                    logger.info(f"Extracting key points from chunk {idx + 1}/{len(chunks)}...")
+                    return idx, self._call_llm(
                         "你是一个播客总结专家。请从以下转写内容中提取关键要点（3-5条），"
                         "每条用一句话概括。只基于内容本身，不要编造。",
-                        f"转写内容（第 {i + 1}/{len(chunks)} 部分）：\n\n{chunk}"
+                        f"转写内容（第 {idx + 1}/{len(chunks)} 部分）：\n\n{chunk}"
                     )
-                    point_parts.append(points)
+
+                # Parallel extraction of key points
+                point_parts: list[str] = ["" for _ in chunks]
+                with ThreadPoolExecutor(max_workers=concurrency) as executor:
+                    futures = {executor.submit(extract_points, (i, c)): i for i, c in enumerate(chunks)}
+                    for future in as_completed(futures):
+                        idx, points = future.result()
+                        point_parts[idx] = points
 
                 # Generate final brief from all key points
                 logger.info("Generating final brief from key points...")

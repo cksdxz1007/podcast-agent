@@ -97,7 +97,7 @@ def main(url: str, name: str = "podcast") -> int:
                     )
 
                     llm_client = create_llm_client()
-                    chinese_text = translate_srt_to_chinese(srt_path, llm_client)
+                    chinese_text = translate_srt_to_chinese(srt_path, llm_client, concurrency=config.llm_concurrency)
                     text_source = TextSource(
                         source_type="subtitle_en_translated",
                         full_text=chinese_text,

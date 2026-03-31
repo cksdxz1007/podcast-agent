@@ -2,6 +2,7 @@
 
 import re
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = logging.getLogger(__name__)
 
@@ -64,15 +65,17 @@ def _chunk_text(text: str, chunk_size: int = CHUNK_SIZE) -> list[str]:
     return chunks
 
 
-def translate_srt_to_chinese(srt_path, llm_client, chunk_size: int = CHUNK_SIZE) -> str:
+def translate_srt_to_chinese(srt_path, llm_client, chunk_size: int = CHUNK_SIZE, concurrency: int = 2) -> str:
     """Translate English SRT subtitles to Chinese text via LLM.
 
     Translates in chunks to avoid token limits, then concatenates results.
+    Uses ThreadPoolExecutor for parallel processing of chunks.
 
     Args:
         srt_path: Path to SRT file
         llm_client: LLMClient instance (from llm_providers)
         chunk_size: Max chars per chunk (default 3000)
+        concurrency: Number of parallel LLM calls (default 2)
 
     Returns:
         Chinese translated text
@@ -83,7 +86,7 @@ def translate_srt_to_chinese(srt_path, llm_client, chunk_size: int = CHUNK_SIZE)
     logger.info(f"Extracted {len(english_text)} chars from SRT")
 
     chunks = _chunk_text(english_text, chunk_size)
-    logger.info(f"Split into {len(chunks)} chunks for translation")
+    logger.info(f"Split into {len(chunks)} chunks for translation (concurrency={concurrency})")
 
     system_prompt = """你是一个专业的翻译员。请将以下英文字幕内容翻译成中文（简体中文）。
 
@@ -93,15 +96,23 @@ def translate_srt_to_chinese(srt_path, llm_client, chunk_size: int = CHUNK_SIZE)
 3. 只输出翻译后的中文文本，不要有任何解释
 4. 专有名词保持原文或使用通用的中文译名"""
 
-    translated_parts = []
-    for i, chunk in enumerate(chunks):
-        logger.info(f"Translating chunk {i + 1}/{len(chunks)} ({len(chunk)} chars)...")
+    def translate_one(args):
+        idx, chunk = args
+        logger.info(f"Translating chunk {idx + 1}/{len(chunks)} ({len(chunk)} chars)...")
         response = llm_client.chat(
             system_prompt,
             f"请将以下英文字幕翻译成中文：\n\n{chunk}"
         )
-        translated_parts.append(response.content.strip())
+        return idx, response.content.strip()
 
-    result = "\n".join(translated_parts)
+    # Use index to preserve order after parallel execution
+    results: list[str] = ["" for _ in chunks]
+    with ThreadPoolExecutor(max_workers=concurrency) as executor:
+        futures = {executor.submit(translate_one, (i, c)): i for i, c in enumerate(chunks)}
+        for future in as_completed(futures):
+            idx, translated = future.result()
+            results[idx] = translated
+
+    result = "\n".join(results)
     logger.info(f"Subtitle translation complete: {len(result)} chars")
     return result
