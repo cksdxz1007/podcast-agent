@@ -4,10 +4,12 @@
 
 ## 功能
 
-1. **自动下载** - 支持 B站、YouTube 及通用链接（含移动端复制格式）
-2. **AI 转写** - 本地 Whisper.cpp 或云端 API（SiliconFlow、OpenAI）
-3. **AI 总结** - 多 LLM 提供商支持（MiniMax、SiliconFlow、DeepSeek、OpenAI、Qwen）
-4. **自动推送** - 结果发送到 Telegram/飞书
+1. **字幕优先** - 自动检测字幕，有字幕时跳过音频下载和转写，节省时间
+2. **自动下载** - 支持 B站、YouTube 及通用链接（含移动端复制格式）
+3. **AI 转写** - 本地 Whisper.cpp 或云端 API（SiliconFlow、OpenAI）
+4. **AI 总结** - 多 LLM 提供商支持（MiniMax、SiliconFlow、DeepSeek、OpenAI、Qwen、OpenRouter）
+5. **自动推送** - 结果发送到 Telegram/飞书
+6. **长内容分块** - 超长内容自动分块并行处理，加速 LLM 生成
 
 ## 快速开始
 
@@ -120,26 +122,38 @@ WHISPERCPP_MODEL_PATH=~/Desktop/whisper.cpp/models/ggml-medium.bin
 | deepseek | deepseek-chat | 官方 API |
 | openai | gpt-4o | OpenAI 兼容 |
 | qwen | qwen-plus | 阿里云百炼 |
+| openrouter | gemini-2.5-flash | 统一 API，支持数百种模型 |
+
+## 字幕优先流程
+
+| 字幕情况 | 处理方式 |
+|----------|----------|
+| 有中文字幕 | 下载字幕 → 直接 LLM 整理（跳过转写） |
+| 有英文字幕 | 下载字幕 → 翻译为中文 → LLM 整理 |
+| 无字幕 | 下载音频 → 转写 → LLM 整理 |
 
 ## 项目结构
 
 ```
 podcast_agent/
-├── main.py              # 主入口
-├── wizard.py            # 交互式配置向导
-├── config.py            # 配置加载
-├── downloader.py         # 视频下载
-├── transcriber.py        # 转写（Facade）
-├── transcription_providers.py  # 转写 Provider 实现
-├── summarizer.py         # AI 总结
-├── notifier.py           # 结果推送
-├── providers.py          # 统一 Provider 注册表
-├── llm_providers.py      # LLM Provider 实现
-├── llm_client.py        # LLM 接口
-└── models.py            # 数据模型
+├── main.py                   # 主入口
+├── wizard.py                 # 交互式配置向导
+├── config.py                 # 配置加载
+├── downloader.py             # 视频下载
+├── transcriber.py            # 转写（Facade）
+├── transcription_providers.py # 转写 Provider 实现
+├── summarizer.py             # AI 总结（含分块并行）
+├── notifier.py               # 结果推送
+├── providers.py              # 统一 Provider 注册表
+├── llm_providers.py          # LLM Provider 实现
+├── llm_client.py             # LLM 接口
+├── subtitle_checker.py       # 字幕可用性检查
+├── subtitle_downloader.py   # 字幕下载
+├── subtitle_translator.py    # 字幕翻译
+└── models.py                 # 数据模型
 
 skills/podcast-transcription/
-└── SKILL.md             # 详细配置文档
+└── SKILL.md                  # 详细配置文档
 ```
 
 ## 依赖
