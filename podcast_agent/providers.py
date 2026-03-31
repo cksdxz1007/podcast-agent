@@ -6,7 +6,7 @@ Configuration files:
 
 Environment variables (can override config files):
     TRANSCRIPTION_PROVIDER=whispercpp|openai|siliconflow
-    LLM_PROVIDER=minimax|siliconflow|deepseek|openai|qwen
+    LLM_PROVIDER=minimax|siliconflow|deepseek|openai|qwen|openrouter
     WHISPER_CLI=/path/to/whisper-cli
     WHISPER_MODEL=/path/to/ggml-medium.bin
 """
@@ -142,6 +142,15 @@ _PROVIDER_DEFAULTS: dict[str, ProviderConfig] = {
         capabilities=[Capability.TRANSCRIPTION],
         cli_path_env="WHISPER_CLI",
         model_path_env="WHISPER_MODEL",
+        api_style=ApiStyle.REST,
+    ),
+    "openrouter": ProviderConfig(
+        name="OpenRouter",
+        provider_type=ProviderType.REMOTE,
+        api_key_env="OPENROUTER_API_KEY",
+        base_url="https://openrouter.ai/api/v1",
+        capabilities=[Capability.LLM],
+        llm_model="google/gemini-2.5-flash",
         api_style=ApiStyle.REST,
     ),
 }

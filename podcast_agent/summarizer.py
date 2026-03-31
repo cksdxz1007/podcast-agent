@@ -11,6 +11,37 @@ from .llm_providers import create_llm_client, LLMClient
 
 logger = logging.getLogger(__name__)
 
+# Rough estimate: ~4 chars per token, use 3000 chars (~750 tokens) per chunk
+DEFAULT_CHUNK_SIZE = 3000
+
+
+def _chunk_text(text: str, chunk_size: int = DEFAULT_CHUNK_SIZE) -> list[str]:
+    """Split text into chunks of approximately chunk_size chars.
+
+    Splits on newline boundaries to keep logical units intact.
+    """
+    if len(text) <= chunk_size:
+        return [text]
+
+    chunks = []
+    lines = text.split("\n")
+    current = []
+
+    for line in lines:
+        current.append(line)
+        if sum(len(l) for l in current) + len(current) > chunk_size:
+            if len(current) > 1:
+                chunks.append("\n".join(current[:-1]))
+                current = [current[-1]]
+            else:
+                chunks.append("\n".join(current))
+                current = []
+
+    if current:
+        chunks.append("\n".join(current))
+
+    return chunks
+
 
 class SummarizationError(Exception):
     """Raised when summarization fails."""
@@ -121,12 +152,33 @@ class Summarizer:
         logger.info("Generating detailed document...")
 
         full_text = text_source.get_full_text()
+        chunks = _chunk_text(full_text, DEFAULT_CHUNK_SIZE)
+        logger.info(f"Split into {len(chunks)} chunks for document generation")
 
         try:
-            markdown_content = self._call_llm(
-                self.DOCUMENT_PROMPT,
-                f"请根据以下转写内容生成详细文档：\n\n{full_text}"
-            )
+            if len(chunks) == 1:
+                markdown_content = self._call_llm(
+                    self.DOCUMENT_PROMPT,
+                    f"请根据以下转写内容生成详细文档：\n\n{chunks[0]}"
+                )
+            else:
+                # Generate partial documents from each chunk
+                partial_docs = []
+                for i, chunk in enumerate(chunks):
+                    logger.info(f"Processing chunk {i + 1}/{len(chunks)}...")
+                    partial = self._call_llm(
+                        self.DOCUMENT_PROMPT,
+                        f"请根据以下转写内容（第 {i + 1}/{len(chunks)} 部分）生成详细文档：\n\n{chunk}"
+                    )
+                    partial_docs.append(partial)
+
+                # Synthesize final document from all partials
+                logger.info("Synthesizing final document from chunks...")
+                markdown_content = self._call_llm(
+                    "你是一个播客内容整理专家。请将多份文档片段合成为一份完整、连贯的 Markdown 文档。"
+                    "要求：合并重复内容，保持结构清晰，不要添加转写中没有的信息。",
+                    "\n\n---\n\n".join(f"文档片段 {i + 1}:\n{doc}" for i, doc in enumerate(partial_docs))
+                )
         except Exception as e:
             raise SummarizationError(f"Failed to generate document: {e}")
 
@@ -158,12 +210,34 @@ class Summarizer:
         logger.info("Generating brief summary...")
 
         full_text = text_source.get_full_text()
+        chunks = _chunk_text(full_text, DEFAULT_CHUNK_SIZE)
+        logger.info(f"Split into {len(chunks)} chunks for brief generation")
 
         try:
-            content = self._call_llm(
-                self.BRIEF_PROMPT,
-                f"请总结以下播客内容：\n\n{full_text}"
-            )
+            if len(chunks) == 1:
+                content = self._call_llm(
+                    self.BRIEF_PROMPT,
+                    f"请总结以下播客内容：\n\n{chunks[0]}"
+                )
+            else:
+                # Extract key points from each chunk
+                point_parts = []
+                for i, chunk in enumerate(chunks):
+                    logger.info(f"Extracting key points from chunk {i + 1}/{len(chunks)}...")
+                    points = self._call_llm(
+                        "你是一个播客总结专家。请从以下转写内容中提取关键要点（3-5条），"
+                        "每条用一句话概括。只基于内容本身，不要编造。",
+                        f"转写内容（第 {i + 1}/{len(chunks)} 部分）：\n\n{chunk}"
+                    )
+                    point_parts.append(points)
+
+                # Generate final brief from all key points
+                logger.info("Generating final brief from key points...")
+                content = self._call_llm(
+                    self.BRIEF_PROMPT,
+                    f"以下是播客各部分的要点总结，请整合成一份连贯的简短总结：\n\n"
+                    + "\n\n---\n\n".join(f"第 {i + 1} 部分要点:\n{pts}" for i, pts in enumerate(point_parts))
+                )
         except Exception as e:
             raise SummarizationError(f"Failed to generate brief: {e}")
 

@@ -236,6 +236,53 @@ class QwenClient(LLMClient):
         return f"Qwen/{self.model}"
 
 
+class OpenRouterClient(LLMClient):
+    """OpenRouter unified LLM API client.
+
+    OpenRouter provides a unified API to hundreds of models from multiple providers.
+    API docs: https://openrouter.ai/docs/api/reference/overview
+    """
+
+    def __init__(self, api_key: str, model: str = "google/gemini-2.5-flash", base_url: str | None = None):
+        self.api_key = api_key
+        self.model = model
+        self.base_url = base_url or "https://openrouter.ai/api/v1"
+
+    def chat(self, system_prompt: str, user_message: str) -> LLMResponse:
+        """Call OpenRouter API."""
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ],
+            "max_tokens": 8000
+        }
+
+        response = requests.post(
+            f"{self.base_url}/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=120
+        )
+        response.raise_for_status()
+
+        result = response.json()
+        content = result["choices"][0]["message"]["content"]
+
+        logger.info(f"OpenRouter {self.model} response: {len(content)} chars")
+        return LLMResponse(content=content)
+
+    @property
+    def name(self) -> str:
+        return f"OpenRouter/{self.model}"
+
+
 def create_llm_client(
     provider: str | None = None,
     api_key: str | None = None,
@@ -281,6 +328,7 @@ def create_llm_client(
             "deepseek": DeepSeekClient,
             "openai": OpenAIClient,
             "qwen": QwenClient,
+            "openrouter": OpenRouterClient,
         }
         client_class = client_map.get(config.name.lower())
         if client_class:
