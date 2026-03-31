@@ -13,3 +13,7 @@ dependencies = [
 [project.scripts]
 podcast-agent = "podcast_agent.main:entry_point"
 podcast-agent-setup = "podcast_agent.wizard:main"
+
+[tool.setuptools.packages.find]
+include = ["podcast_agent*"]
+exclude = ["tmp*", "logs*", "skills*", "subtitles*", "documents*", "transcriptions*"]
